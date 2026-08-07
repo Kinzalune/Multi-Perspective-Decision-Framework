@@ -1,6 +1,6 @@
 #orchestartor.py
 
-from schemas import DataState, AgentTurnResult
+from schemas import DebateState, AgentTurnResult
 import time 
 from datetime import datetime
 
@@ -45,5 +45,15 @@ if __name__ == "__main__":
     # initialize state
     session = DebateState(
         session_id="session_demo_001",
-        user_query="Should we move our core application to AWS severless"
+        user_query="Should we move our core application to AWS severless",
+        max_round=2
     )
+
+    print(f"Initial Session ID: {session.session_id}")
+    print(f"Target Query: {session.user_query}")
+
+    while not session.is_completed:
+        session = run_orchestration_cycle(session)
+
+    print(f"\nDebate Loop Ended! Reason: {session.termination_reason}")
+    print(f"Total History Items Generated: {len(session.history)}")

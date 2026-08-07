@@ -16,7 +16,7 @@ class DebateState(BaseModel):
     current_round: int = 1
     max_rounds: int = 3
     agent_order: list[str] = ["optimist", "skeptic", "cost_cutter"]
-    history: List[AgentTurnResult]=[]
+    history: list[AgentTurnResult]=[]
     is_completed: bool = False
     termination_reason: Optional[str] = None
 
