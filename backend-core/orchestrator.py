@@ -1,40 +1,49 @@
-#orchestartor.py
-
 from schemas import DebateState, AgentTurnResult
-import time 
-from datetime import datetime
+from tasks import execute_agent_turn
+from failure_handler import FailureHandler
+from datetime import datetime, timezone
 
-def mock_agent_execution(persona: str, round_num: int, query: str) -> str:
-    """Simulates background worker execution without requiring external connections."""
-    time.sleep(0.5) #to simulate network latency we use sleep here
-    return f"[{persona.upper()}] (Round {round_num}): Analyzed query '{query}'. Identified key opportunities and risks."
+circuit_manager = FailureHandler(failure_threshold=2)
 
-def run_orchestration_cycle(state: DebateState) -> DebateState:
-    print(f"\n==========")
-    print(f"   RUNNING DEBATE ROUND {state.current_round} / {state.max_rounds}")
-    print(f"========")
+def run_async_orchestration_cycle(state: DebateState) -> DebateState:
+    print(f"\n==========================================")
+    print(f"       ASYNC DEBATE ROUND {state.current_round} / {state.max_rounds}")
+    print(f"==========================================")
 
+    pending_tasks = {}
     for persona in state.agent_order:
-        print(f"[Orchestrator] Requesting argument from: {persona}...")
-
-        #Simulate worker processing
-        argument_output = mock_agent_execution(persona, state.current_round, state.user_query)
-
-        # Validate output through Pydantic
-        turn_data = AgentTurnResult(
-            session_id= state.session_id,
-            round_number= state.current_round,
-            persona=persona,
-            argument_text=argument_output,
-            timestamp=datetime.utcnow()
+        print(f"[Orchestrator] Queueing task for: {persona}...")
+        async_result = execute_agent_turn.delay(
+            state.session_id,
+            state.current_round,
+            persona,
+            state.user_query
         )
+        pending_tasks[persona] = async_result
 
+    for persona, task_handle in pending_tasks.items():
+        try:
+            raw_result = task_handle.get(timeout=10.0)
+            circuit_manager.record_success(persona)
+        except Exception as exc:
+            print(f"[Warning] Task failed for {persona}: {exc}")
+            circuit_manager.record_failure(persona, exc)
+            raw_result = circuit_manager.generate_fallback_turn(persona, state.user_query)
+            raw_result["round_number"] = state.current_round
+            raw_result["session_id"] = state.session_id
+            raw_result["timestamp"] = datetime.now(timezone.utc).isoformat()
+
+        turn_data = AgentTurnResult(
+            session_id=raw_result["session_id"],
+            round_number=raw_result["round_number"],
+            persona=raw_result["persona"],
+            argument_text=raw_result["argument_text"],
+            timestamp=datetime.fromisoformat(raw_result["timestamp"])
+        )
         state.history.append(turn_data)
-        print(f" -> Successfully parsed and stored turn for {persona}")
+        print(f" -> Stored turn for {persona}")
 
-    # Progress round counter
-    state.current_round +=1
-
+    state.current_round += 1
     if state.current_round > state.max_rounds:
         state.is_completed = True
         state.termination_reason = "max_rounds_reached"
@@ -42,18 +51,14 @@ def run_orchestration_cycle(state: DebateState) -> DebateState:
     return state
 
 if __name__ == "__main__":
-    # initialize state
     session = DebateState(
-        session_id="session_demo_001",
-        user_query="Should we move our core application to AWS severless",
-        max_round=2
+        session_id="session_async_001",
+        user_query="Should we migrate our backend to an asynchronous microservice architecture?",
+        max_rounds=2
     )
-
-    print(f"Initial Session ID: {session.session_id}")
-    print(f"Target Query: {session.user_query}")
-
+    
     while not session.is_completed:
-        session = run_orchestration_cycle(session)
-
-    print(f"\nDebate Loop Ended! Reason: {session.termination_reason}")
-    print(f"Total History Items Generated: {len(session.history)}")
+        session = run_async_orchestration_cycle(session)
+        
+    print(f"\nDebate Loop Finished! Reason: {session.termination_reason}")
+    print(f"Total History Size: {len(session.history)}")
