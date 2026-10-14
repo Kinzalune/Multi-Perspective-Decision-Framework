@@ -1,0 +1,500 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Multi-Perspective Decision Framework</title>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6fa;
+            color: #1f2937;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 28px 20px;
+        }
+
+        header div, main {
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+            font-size: 26px;
+        }
+
+        header p {
+            margin: 0;
+            color: #dbeafe;
+        }
+
+        main { padding: 24px 16px 48px; }
+
+        .panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 12px #1725540a;
+        }
+
+        h2 { margin-top: 0; font-size: 20px; }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .criterion { margin: 22px 0; }
+
+        .criterion-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .criterion-head label { font-weight: 600; }
+
+        .weight-value {
+            font-weight: bold;
+            color: #1d4ed8;
+            min-width: 45px;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #2563eb;
+            cursor: pointer;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-radius: 8px;
+            background: #f1f5f9;
+            margin-top: 24px;
+        }
+
+        #total {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        #weight-message {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 10px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            background: #1d4ed8;
+            color: white;
+            padding: 13px 20px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover { background: #1e40af; }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .secondary {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .secondary:hover { background: #cbd5e1; }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 22px;
+        }
+
+        #status {
+            margin-top: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .error { color: #b91c1c; }
+        .success { color: #166534; }
+
+        .table-wrap { overflow-x: auto; }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 14px;
+        }
+
+        th, td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+
+        th {
+            background: #f8fafc;
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .rank {
+            font-weight: bold;
+            color: #1d4ed8;
+        }
+
+        .hidden { display: none; }
+
+        .weight-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .weight-chip {
+            background: #eff6ff;
+            color: #1e40af;
+            border-radius: 20px;
+            padding: 7px 10px;
+            font-size: 12px;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+            padding: 10px 16px 24px;
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <div>
+        <h1>Multi-Perspective Decision Framework</h1>
+        <p>Adjust criterion importance and compare your alternatives.</p>
+    </div>
+</header>
+
+<main>
+    <section class="panel">
+        <h2>Criterion weights</h2>
+        <p class="subtitle">
+            Adjust the sliders to change the importance of each criterion.
+            The API normalizes the submitted weights before calculating scores.
+        </p>
+
+        <div id="sliders"></div>
+
+        <div class="total-row">
+            <span>Total selected weight</span>
+            <span id="total" aria-live="polite">100%</span>
+        </div>
+
+        <p id="weight-message">
+            Weights can be entered as percentages. Their relative proportions
+            determine the final normalized weights.
+        </p>
+
+        <div class="actions">
+            <button id="calculate">Recalculate rankings</button>
+            <button id="reset" class="secondary" type="button">
+                Reset defaults
+            </button>
+        </div>
+
+        <div id="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="results" class="panel hidden">
+        <h2>Decision rankings</h2>
+        <p class="subtitle" id="result-summary"></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Alternative</th>
+                        <th>Weighted score</th>
+                    </tr>
+                </thead>
+                <tbody id="ranking-body"></tbody>
+            </table>
+        </div>
+
+        <h2 style="margin-top: 28px;">Weights used by the API</h2>
+        <div id="effective-weights" class="weight-list"></div>
+    </section>
+</main>
+
+<footer>
+    Multi-Perspective Decision Framework · Flask API
+</footer>
+
+<script>
+    const criteria = [
+        { key: "cost", label: "Cost", initial: 50 },
+        { key: "benefit", label: "Benefit", initial: 10 },
+        { key: "feasibility", label: "Feasibility", initial: 10 },
+        { key: "risk", label: "Risk", initial: 10 },
+        { key: "stakeholder_impact", label: "Stakeholder impact", initial: 10 },
+        { key: "sustainability", label: "Sustainability", initial: 10 }
+    ];
+
+    const slidersContainer = document.getElementById("sliders");
+    const totalElement = document.getElementById("total");
+    const weightMessage = document.getElementById("weight-message");
+    const statusElement = document.getElementById("status");
+    const calculateButton = document.getElementById("calculate");
+    const resetButton = document.getElementById("reset");
+    const resultsSection = document.getElementById("results");
+    const rankingBody = document.getElementById("ranking-body");
+    const effectiveWeights = document.getElementById("effective-weights");
+
+    // Build the sliders from the criterion configuration.
+    criteria.forEach(criterion => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "criterion";
+
+        const heading = document.createElement("div");
+        heading.className = "criterion-head";
+
+        const label = document.createElement("label");
+        label.htmlFor = "weight-" + criterion.key;
+        label.textContent = criterion.label;
+
+        const value = document.createElement("span");
+        value.className = "weight-value";
+        value.id = "value-" + criterion.key;
+        value.textContent = criterion.initial + "%";
+
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.id = "weight-" + criterion.key;
+        slider.min = "0";
+        slider.max = "100";
+        slider.step = "1";
+        slider.value = String(criterion.initial);
+        slider.setAttribute(
+            "aria-label",
+            criterion.label + " weight percentage"
+        );
+
+        slider.addEventListener("input", updateTotal);
+
+        heading.append(label, value);
+        wrapper.append(heading, slider);
+        slidersContainer.appendChild(wrapper);
+    });
+
+    function getWeights() {
+        const weights = {};
+
+        criteria.forEach(criterion => {
+            const input = document.getElementById(
+                "weight-" + criterion.key
+            );
+            const value = Number(input.value);
+
+            if (!Number.isFinite(value) || value < 0 || value > 100) {
+                throw new Error(
+                    "Invalid weight for " + criterion.label + "."
+                );
+            }
+
+            weights[criterion.key] = value;
+        });
+
+        return weights;
+    }
+
+    function updateTotal() {
+        const weights = getWeights();
+        const total = Object.values(weights).reduce(
+            (sum, value) => sum + value, 0
+        );
+
+        criteria.forEach(criterion => {
+            document.getElementById(
+                "value-" + criterion.key
+            ).textContent = weights[criterion.key] + "%";
+        });
+
+        totalElement.textContent = total + "%";
+
+        if (total === 0) {
+            totalElement.style.color = "#b91c1c";
+            weightMessage.textContent =
+                "Choose at least one criterion with a weight greater than zero.";
+        } else if (total !== 100) {
+            totalElement.style.color = "#b45309";
+            weightMessage.textContent =
+                "Your weights total " + total +
+                "%. The API will normalize their relative proportions to 100%.";
+        } else {
+            totalElement.style.color = "#166534";
+            weightMessage.textContent =
+                "Weights total 100%. Ready to calculate.";
+        }
+    }
+
+    function showStatus(message, type) {
+        statusElement.textContent = message;
+        statusElement.className = type || "";
+    }
+
+    function renderRankings(data) {
+        if (!Array.isArray(data.ranking) || data.ranking.length === 0) {
+            throw new Error("The API returned no ranking results.");
+        }
+
+        rankingBody.replaceChildren();
+        effectiveWeights.replaceChildren();
+
+        data.ranking.forEach(item => {
+            if (
+                typeof item.alternative !== "string" ||
+                !Number.isFinite(Number(item.rank)) ||
+                !Number.isFinite(Number(item.score))
+            ) {
+                throw new Error("The API returned an invalid ranking row.");
+            }
+
+            const row = document.createElement("tr");
+
+            const rankCell = document.createElement("td");
+            rankCell.className = "rank";
+            rankCell.textContent = "#" + item.rank;
+
+            const alternativeCell = document.createElement("td");
+            alternativeCell.textContent = item.alternative;
+
+            const scoreCell = document.createElement("td");
+            scoreCell.textContent = Number(item.score).toFixed(2);
+
+            row.append(rankCell, alternativeCell, scoreCell);
+            rankingBody.appendChild(row);
+        });
+
+        Object.entries(data.weights || {}).forEach(([key, value]) => {
+            const criterion = criteria.find(item => item.key === key);
+            const chip = document.createElement("span");
+            chip.className = "weight-chip";
+            chip.textContent =
+                (criterion ? criterion.label : key) +
+                ": " + (Number(value) * 100).toFixed(1) + "%";
+
+            effectiveWeights.appendChild(chip);
+        });
+
+        document.getElementById("result-summary").textContent =
+            data.ranking.length +
+            " alternatives ranked by weighted score, highest first.";
+
+        resultsSection.classList.remove("hidden");
+    }
+
+    async function calculateRankings() {
+        let weights;
+
+        try {
+            weights = getWeights();
+        } catch (error) {
+            showStatus(error.message, "error");
+            return;
+        }
+
+        const total = Object.values(weights).reduce(
+            (sum, value) => sum + value, 0
+        );
+
+        if (!Number.isFinite(total) || total <= 0) {
+            showStatus(
+                "The total weight must be greater than zero.",
+                "error"
+            );
+            return;
+        }
+
+        calculateButton.disabled = true;
+        showStatus("Calculating rankings...", "");
+
+        try {
+            const response = await fetch("/api/rank", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({ weights })
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    data.error || "Request failed with HTTP " + response.status
+                );
+            }
+
+            renderRankings(data);
+            showStatus("Rankings updated successfully.", "success");
+
+        } catch (error) {
+            showStatus(
+                "Could not calculate rankings: " + error.message +
+                " Check that Flask is running and /api/rank is available.",
+                "error"
+            );
+        } finally {
+            calculateButton.disabled = false;
+        }
+    }
+
+    calculateButton.addEventListener("click", calculateRankings);
+
+    resetButton.addEventListener("click", () => {
+        criteria.forEach(criterion => {
+            document.getElementById(
+                "weight-" + criterion.key
+            ).value = String(criterion.initial);
+        });
+
+        updateTotal();
+        calculateRankings();
+    });
+
+    updateTotal();
+
+    // Calculate initial results as soon as the page loads.
+    calculateRankings();
+</script>
+</body>
+</html>
